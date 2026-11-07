@@ -1,4 +1,4 @@
-# Bifrost
+# Bifrost - The bridge between worlds. Your data, beyond distance.
 
 **Self-hosted file and text sharing across the devices on your local network.**
 
