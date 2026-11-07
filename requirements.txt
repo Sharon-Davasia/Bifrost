@@ -1,0 +1,6 @@
+# Bifrost runtime dependencies (Python 3.11+)
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.29,<1.0
+aiofiles>=23.2,<25.0
+qrcode>=7.4,<9.0
+Pillow>=10.2,<12.0
