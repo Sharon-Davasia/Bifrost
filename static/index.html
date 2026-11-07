@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#F7F8FA">
+  <meta name="description" content="Bifrost - share files and text across your devices on the local network.">
+  <title>Bifrost · Shared inbox</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-bridge" viewBox="0 0 24 24">
+      <path d="M2 18h20"></path>
+      <path d="M5 18v-4a7 7 0 0 1 14 0v4"></path>
+      <path d="M9 18v-7.5"></path>
+      <path d="M15 18v-7.5"></path>
+      <path d="M12 18v-9"></path>
+    </symbol>
+    <symbol id="i-device" viewBox="0 0 24 24">
+      <rect x="7" y="3" width="10" height="18" rx="2.4"></rect>
+      <path d="M11 18h2"></path>
+    </symbol>
+    <symbol id="i-pencil" viewBox="0 0 24 24">
+      <path d="M4 20h4L18.5 9.5a2.8 2.8 0 0 0-4-4L4 16z"></path>
+      <path d="M13.5 6.5l4 4"></path>
+    </symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24">
+      <path d="M12 16V4"></path>
+      <path d="M7 9l5-5 5 5"></path>
+      <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path>
+    </symbol>
+    <symbol id="i-send" viewBox="0 0 24 24">
+      <path d="M21 3L10.5 13.5"></path>
+      <path d="M21 3l-6.8 18-3.7-7.5L3 9.8z"></path>
+    </symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24">
+      <rect x="4" y="10" width="16" height="10" rx="2.4"></rect>
+      <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="M20 6L9 17l-5-5"></path>
+    </symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24">
+      <path d="M12 8.5v5"></path>
+      <path d="M12 17h.01"></path>
+      <path d="M10.3 4.1L2.7 17.6A1.9 1.9 0 0 0 4.4 20h15.2a1.9 1.9 0 0 0 1.7-2.4L13.7 4.1a1.9 1.9 0 0 0-3.4 0z"></path>
+    </symbol>
+    <symbol id="i-info" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"></circle>
+      <path d="M12 11v5"></path>
+      <path d="M12 8h.01"></path>
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24">
+      <path d="M6 6l12 12"></path>
+      <path d="M18 6L6 18"></path>
+    </symbol>
+    <symbol id="i-file" viewBox="0 0 24 24">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+      <path d="M14 3v5h5"></path>
+    </symbol>
+    <symbol id="i-image" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="16" rx="2.4"></rect>
+      <circle cx="9" cy="10" r="1.6"></circle>
+      <path d="M4 17.5l5.5-4.5 4 3 3-2 4 3.5"></path>
+    </symbol>
+    <symbol id="i-note" viewBox="0 0 24 24">
+      <path d="M6 3h8l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"></path>
+      <path d="M14 3v5h5"></path>
+      <path d="M8 12h8"></path>
+      <path d="M8 16h5"></path>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24">
+      <path d="M12 4v12"></path>
+      <path d="M7 11l5 5 5-5"></path>
+      <path d="M4 20h16"></path>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24">
+      <path d="M4 7h16"></path>
+      <path d="M9 7V5h6v2"></path>
+      <path d="M6.5 7l1 12.5a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5L18 7"></path>
+      <path d="M10 11v6"></path>
+      <path d="M14 11v6"></path>
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24">
+      <rect x="9" y="9" width="11" height="11" rx="2.4"></rect>
+      <path d="M15 5.5H6a2 2 0 0 0-2 2V16"></path>
+    </symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24">
+      <path d="M3 13l3-8h12l3 8v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+      <path d="M3 13h5l1 3h6l1-3h5"></path>
+    </symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24">
+      <path d="M4 9.5a13 13 0 0 1 16 0"></path>
+      <path d="M7 13a8.5 8.5 0 0 1 10 0"></path>
+      <path d="M10 16.4a4.2 4.2 0 0 1 4 0"></path>
+      <path d="M12 19.5h.01"></path>
+    </symbol>
+    <symbol id="i-retry" viewBox="0 0 24 24">
+      <path d="M4 10a8 8 0 1 1 2.4 6.3"></path>
+      <path d="M4 4v6h6"></path>
+    </symbol>
+  </svg>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg class="icon" aria-hidden="true"><use href="#i-bridge"></use></svg>
+        </span>
+        <div class="brand-text">
+          <h1>Bifrost</h1>
+          <p>Shared inbox</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" id="device-chip" class="chip" aria-haspopup="dialog" title="Change this device's name">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#i-device"></use></svg>
+          <span id="device-chip-label" class="chip-label">This device</span>
+          <svg class="icon icon-xs" aria-hidden="true"><use href="#i-pencil"></use></svg>
+        </button>
+        <p id="conn" class="status" data-state="idle" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="conn-label">Not paired</span>
+        </p>
+      </div>
+    </header>
+
+    <section id="host-panel" class="host-panel" aria-labelledby="host-panel-title" hidden>
+      <div class="host-panel-head">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-lock"></use></svg>
+        <h2 id="host-panel-title">Host pairing PIN</h2>
+        <span class="pill pill-host">This computer only</span>
+      </div>
+      <p id="host-pin" class="host-pin">------</p>
+      <p class="host-hint">Scan the QR code in the Bifrost terminal, or type this PIN on another device to pair it.</p>
+      <p class="host-lan">LAN address <span id="host-lan-url">—</span></p>
+    </section>
+
+    <main class="main">
+      <section id="auth-screen" class="card auth" aria-labelledby="auth-title" hidden>
+        <div class="auth-head">
+          <span class="auth-icon" aria-hidden="true">
+            <svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg>
+          </span>
+          <h2 id="auth-title">Pair this device</h2>
+          <p class="muted">Enter the six-digit PIN shown in the Bifrost terminal on the host computer.</p>
+        </div>
+        <form id="auth-form" class="auth-form" novalidate>
+          <fieldset id="pin-field" class="pin-field">
+            <legend class="sr-only">Six-digit pairing PIN</legend>
+            <input class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="PIN digit 1">
+            <input class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 2">
+            <input class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 3">
+            <input class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 4">
+            <input class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 5">
+            <input class="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" aria-label="PIN digit 6">
+          </fieldset>
+          <p id="auth-error" class="form-error" role="alert" hidden></p>
+          <button type="submit" id="auth-submit" class="btn btn-primary btn-block" disabled>Pair device</button>
+        </form>
+        <p class="auth-foot muted">This device stays paired for 30 days, even if the server restarts.</p>
+      </section>
+
+      <div id="app-main" class="app-main" hidden>
+        <section class="card upload-card" aria-labelledby="upload-title">
+          <h2 id="upload-title" class="sr-only">Upload files</h2>
+          <button type="button" id="dropzone" class="dropzone" aria-describedby="dropzone-hint">
+            <span class="dz-icon" aria-hidden="true">
+              <svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg>
+            </span>
+            <span class="dz-title">Tap to choose files or drop here</span>
+            <span id="dropzone-hint" class="dz-hint">Share photos, videos, documents and more.</span>
+          </button>
+          <input id="file-input" class="visually-hidden" type="file" multiple tabindex="-1" aria-hidden="true">
+          <ul id="upload-queue" class="upload-queue" aria-live="polite"></ul>
+        </section>
+
+        <section class="card note-card" aria-labelledby="note-title">
+          <h2 id="note-title" class="sr-only">Send a text note</h2>
+          <label class="sr-only" for="note-input">Note text</label>
+          <textarea id="note-input" class="note-input" rows="3" placeholder="Paste or type something to share..." spellcheck="true"></textarea>
+          <div class="note-foot">
+            <span id="note-count" class="note-count">0 / 100,000</span>
+            <span class="note-hint">Ctrl / ⌘ + Enter</span>
+            <button type="button" id="note-send" class="btn btn-primary">
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-send"></use></svg>
+              <span>Send note</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="inbox" aria-labelledby="inbox-title">
+          <div class="inbox-head">
+            <h2 id="inbox-title">Shared inbox</h2>
+            <span id="inbox-count" class="pill">0 items</span>
+          </div>
+          <div id="inbox-list" class="inbox-list"></div>
+          <div id="empty-state" class="empty" hidden>
+            <span class="empty-icon" aria-hidden="true">
+              <svg class="icon" aria-hidden="true"><use href="#i-inbox"></use></svg>
+            </span>
+            <p class="empty-title">Nothing here yet</p>
+            <p class="empty-hint muted">Send a file or note to see it appear here.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <p class="muted">Local network only · plain HTTP · keep this server running while other devices are connected</p>
+    </footer>
+  </div>
+
+  <dialog id="device-dialog" class="dialog" aria-labelledby="device-dialog-title">
+    <form id="device-form" class="dialog-form" method="dialog">
+      <h2 id="device-dialog-title">Device name</h2>
+      <p class="muted">Shown next to everything you send. Up to 40 characters.</p>
+      <label class="sr-only" for="device-input">Device name</label>
+      <input id="device-input" class="text-input" type="text" maxlength="40" autocomplete="off" spellcheck="false" enterkeyhint="done">
+      <div class="dialog-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" id="device-cancel" class="btn btn-ghost">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>

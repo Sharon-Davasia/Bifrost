@@ -1,0 +1,12 @@
+# Static analysis settings used while developing Bifrost (optional tooling;
+# ruff is not required to run or test the application).
+line-length = 100
+exclude = ["data", ".venv", "venv"]
+
+[lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    "B008",  # FastAPI's Depends()/Query() idiom in argument defaults
+    "E501",  # line length is advisory; long strings are intentional
+    "UP007", # Optional[...] unions kept explicit for readability in 3.11
+]
