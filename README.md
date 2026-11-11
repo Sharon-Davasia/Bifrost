@@ -495,6 +495,10 @@ Free space is checked before the upload starts (declared size + 256 MB reserve) 
 re-checked periodically during long transfers. If the disk would run out, the transfer is
 rejected with `507` and the partial file is removed.
 
+The interface reads these values from the `GET /api/items` snapshot, shows the limit
+under the drop zone, and refuses oversized files locally before spending bandwidth on
+them. The server still enforces the limit independently.
+
 To allow larger files:
 
 ```bat
@@ -693,7 +697,7 @@ always JSON: `{"error": "..."}`.
 | `GET` | `/api/pairing-info` | Current PIN for the host browser only | `200` · `403` |
 | `POST` | `/api/upload` | Raw streaming file upload | `201` · `400` · `401` · `413` · `507` |
 | `POST` | `/api/note` | Create a text note | `201` · `400` · `401` |
-| `GET` | `/api/items` | List inbox items, newest first | `200` · `401` |
+| `GET` | `/api/items` | List inbox items (newest first) + configured limits | `200` · `401` |
 | `GET` | `/api/files/{id}` | Stream a file (supports Range) | `200` · `206` · `404` · `416` |
 | `GET` | `/api/thumb/{id}` | Cached JPEG thumbnail | `200` · `404` · `415` |
 | `DELETE` | `/api/items/{id}` | Delete item metadata and file | `200` · `404` |

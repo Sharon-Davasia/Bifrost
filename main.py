@@ -485,7 +485,16 @@ def create_app(
     async def list_items(session: Session = Depends(require_session)) -> JSONResponse:
         items = await run_in_threadpool(state.db.list_items)
         return JSONResponse(
-            {"items": [item.to_public() for item in items], "server_time": utc_now_iso()},
+            {
+                "items": [item.to_public() for item in items],
+                "server_time": utc_now_iso(),
+                # Lets the interface state the real limits and reject oversized
+                # files before spending bandwidth on them.
+                "limits": {
+                    "max_upload_bytes": config.max_upload_bytes,
+                    "max_note_chars": config.max_note_chars,
+                },
+            },
             headers={"cache-control": "no-store"},
         )
 

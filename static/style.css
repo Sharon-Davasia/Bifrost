@@ -652,6 +652,13 @@ textarea {
   color: var(--muted);
 }
 
+.upload-limit {
+  margin: 0;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
 .upload-queue {
   list-style: none;
   margin: 0;

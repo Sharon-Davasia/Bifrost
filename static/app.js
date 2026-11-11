@@ -8,7 +8,8 @@
 (function () {
   'use strict';
 
-  var MAX_NOTE_CHARS = 100000;
+  var MAX_NOTE_CHARS = 100000; // fallback until the server reports its limit
+  var DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
   var MAX_DEVICE_CHARS = 40;
   var MAX_CONCURRENT_UPLOADS = 3;
   var STORAGE_DEVICE = 'bifrost.device';
@@ -33,7 +34,9 @@
     authBusy: false,
     lockedUntil: 0,
     lockoutTimer: null,
-    rowTimers: new Map()
+    rowTimers: new Map(),
+    maxNoteChars: MAX_NOTE_CHARS,
+    maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES
   };
 
   var cards = new Map();
@@ -397,6 +400,24 @@
     return headers;
   }
 
+  function applyLimits(limits) {
+    if (limits && typeof limits === 'object') {
+      if (Number.isFinite(limits.max_upload_bytes) && limits.max_upload_bytes > 0) {
+        state.maxUploadBytes = limits.max_upload_bytes;
+      }
+      if (Number.isFinite(limits.max_note_chars) && limits.max_note_chars > 0) {
+        state.maxNoteChars = limits.max_note_chars;
+      }
+    }
+    if (state.maxUploadBytes) {
+      dom.uploadLimit.textContent =
+        'Up to ' + formatBytes(state.maxUploadBytes) + ' per file · ' +
+        MAX_CONCURRENT_UPLOADS + ' at a time';
+      dom.uploadLimit.hidden = false;
+    }
+    updateNoteCount();
+  }
+
   async function fetchItems() {
     var response = await fetch('/api/items', {
       method: 'GET',
@@ -410,6 +431,8 @@
     }
     if (!response.ok) throw new Error('Could not load the shared inbox.');
     var data = await readJsonSafe(response);
+    // The snapshot also carries the server's configured limits.
+    applyLimits(data && data.limits);
     return normalizeItems(data && data.items);
   }
 
@@ -906,21 +929,41 @@
       error: '',
       xhr: null,
       row: null,
-      nodes: null
+      nodes: null,
+      localOnly: false
     };
   }
 
   function handleFiles(fileList) {
     var files = Array.prototype.slice.call(fileList || []);
     if (!files.length) return;
+    var tooLarge = 0;
     files.forEach(function (file) {
-      state.uploads.push(makeUploadEntry(file));
+      var entry = makeUploadEntry(file);
+      // Fail fast rather than spending the user's bandwidth on a file the
+      // server is guaranteed to refuse.
+      if (state.maxUploadBytes && file.size > state.maxUploadBytes) {
+        entry.status = 'failed';
+        entry.localOnly = true;
+        entry.error = 'Larger than the ' + formatBytes(state.maxUploadBytes) + ' per-file limit.';
+        tooLarge += 1;
+      }
+      state.uploads.push(entry);
     });
     state.uploads.forEach(function (entry) {
       if (!entry.row) buildUploadRow(entry);
     });
     updateAllUploadRows();
     pumpQueue();
+    if (tooLarge) {
+      var limit = formatBytes(state.maxUploadBytes);
+      toast(
+        tooLarge === 1
+          ? 'One file is larger than the ' + limit + ' limit.'
+          : tooLarge + ' files are larger than the ' + limit + ' limit.',
+        'error'
+      );
+    }
   }
 
   function buildUploadRow(entry) {
@@ -990,17 +1033,21 @@
       nodes.percent.textContent = '';
       nodes.progress.value = 0;
       nodes.progress.setAttribute('aria-valuenow', '0');
-      var retry = el('button', 'btn btn-ghost', 'Retry');
-      retry.type = 'button';
-      retry.addEventListener('click', function () {
-        retryUpload(entry);
-      });
       var dismiss = el('button', 'btn btn-ghost', 'Dismiss');
       dismiss.type = 'button';
       dismiss.addEventListener('click', function () {
         removeUpload(entry);
       });
-      nodes.actions.replaceChildren(retry, dismiss);
+      if (entry.localOnly) {
+        nodes.actions.replaceChildren(dismiss);
+      } else {
+        var retry = el('button', 'btn btn-ghost', 'Retry');
+        retry.type = 'button';
+        retry.addEventListener('click', function () {
+          retryUpload(entry);
+        });
+        nodes.actions.replaceChildren(retry, dismiss);
+      }
     }
   }
 
@@ -1105,7 +1152,7 @@
   }
 
   function retryUpload(entry) {
-    if (!entry || entry.status !== 'failed') return;
+    if (!entry || entry.status !== 'failed' || entry.localOnly) return;
     entry.status = 'queued';
     entry.progress = 0;
     entry.error = '';
@@ -1149,11 +1196,11 @@
   /* ----------------------------------------------------------------- notes */
   function updateNoteCount() {
     var length = codePointLength(dom.noteInput.value);
-    dom.noteCount.textContent =
-      length.toLocaleString() + ' / ' + MAX_NOTE_CHARS.toLocaleString();
-    dom.noteCount.classList.toggle('is-near', length >= MAX_NOTE_CHARS * 0.9 && length <= MAX_NOTE_CHARS);
-    dom.noteCount.classList.toggle('is-over', length > MAX_NOTE_CHARS);
-    var over = length > MAX_NOTE_CHARS;
+    var limit = state.maxNoteChars;
+    dom.noteCount.textContent = length.toLocaleString() + ' / ' + limit.toLocaleString();
+    dom.noteCount.classList.toggle('is-near', length >= limit * 0.9 && length <= limit);
+    dom.noteCount.classList.toggle('is-over', length > limit);
+    var over = length > limit;
     dom.noteSend.disabled = over || state.noteBusy;
     if (over) {
       dom.noteCount.setAttribute('aria-label', 'Note is too long');
@@ -1178,8 +1225,8 @@
       dom.noteInput.focus();
       return;
     }
-    if (codePointLength(text) > MAX_NOTE_CHARS) {
-      toast('Notes are limited to ' + MAX_NOTE_CHARS.toLocaleString() + ' characters.', 'error');
+    if (codePointLength(text) > state.maxNoteChars) {
+      toast('Notes are limited to ' + state.maxNoteChars.toLocaleString() + ' characters.', 'error');
       return;
     }
     state.noteBusy = true;
@@ -1436,6 +1483,7 @@
     dom.dropzone = document.getElementById('dropzone');
     dom.fileInput = document.getElementById('file-input');
     dom.uploadQueue = document.getElementById('upload-queue');
+    dom.uploadLimit = document.getElementById('upload-limit');
     dom.noteInput = document.getElementById('note-input');
     dom.noteCount = document.getElementById('note-count');
     dom.noteSend = document.getElementById('note-send');
