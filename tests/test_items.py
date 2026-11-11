@@ -83,6 +83,23 @@ def test_items_are_newest_first(authed_client, clock):
     assert listed[0]["name"] == "newest.bin"
 
 
+def test_snapshot_reports_configured_limits(authed_client, settings):
+    payload = authed_client.get("/api/items").json()
+    assert payload["limits"] == {
+        "max_upload_bytes": settings.max_upload_bytes,
+        "max_note_chars": settings.max_note_chars,
+    }
+
+
+def test_snapshot_limits_follow_configuration(isolated_client):
+    client, _app, _settings = isolated_client(
+        max_upload_bytes=2 * 1024 * 1024, max_note_chars=500
+    )
+    limits = client.get("/api/items").json()["limits"]
+    assert limits["max_upload_bytes"] == 2 * 1024 * 1024
+    assert limits["max_note_chars"] == 500
+
+
 def test_items_persist_across_restart(settings_factory, clock, app_factory):
     settings = settings_factory()
 
