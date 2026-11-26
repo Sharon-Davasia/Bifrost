@@ -682,6 +682,59 @@ textarea {
   color: var(--muted);
 }
 
+.storage {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.storage[hidden] {
+  display: none;
+}
+
+.storage-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.storage-label {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.storage-text {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.storage-meter {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-muted);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.storage-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 220ms ease;
+}
+
+.storage.is-high .storage-fill {
+  background: var(--warn);
+}
+
+.storage.is-full .storage-fill {
+  background: var(--danger);
+}
+
 .upload-queue {
   list-style: none;
   margin: 0;

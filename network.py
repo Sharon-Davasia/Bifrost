@@ -143,6 +143,7 @@ def _banner_lines(
     urls: dict[str, str],
     warnings: list[str],
     qr_block: str | None,
+    storage: dict[str, int] | None = None,
 ) -> list[str]:
     max_upload = _human_bytes(settings.max_upload_bytes)
     rule = "=" * 62
@@ -158,6 +159,7 @@ def _banner_lines(
         f"  Pairing URL     : {urls['pairing']}",
         f"  Storage folder  : {settings.data_dir}",
         f"  Max upload size : {max_upload}",
+        f"  Inbox storage   : {_storage_line(settings, storage)}",
     ]
     if warnings:
         lines.append("  Warnings:")
@@ -184,6 +186,15 @@ def _banner_lines(
     return lines
 
 
+def _storage_line(settings: Settings, storage: dict[str, int] | None) -> str:
+    """``312 MB of 5.0 GB used (4.7 GB free)`` for the banner."""
+    limit = settings.max_storage_bytes
+    used = max(0, int((storage or {}).get("used_bytes", 0)))
+    used = min(used, limit)
+    free = max(0, limit - used)
+    return f"{_human_bytes(used)} of {_human_bytes(limit)} used ({_human_bytes(free)} free)"
+
+
 def _human_bytes(value: int) -> str:
     units = ["B", "KB", "MB", "GB", "TB"]
     size = float(value)
@@ -202,6 +213,7 @@ def print_banner(
     pin: str,
     ip: str,
     warnings: list[str] | None = None,
+    storage: dict[str, int] | None = None,
     stream: TextIO | None = None,
 ) -> None:
     """Print the startup banner (never routed through the logging system)."""
@@ -221,7 +233,13 @@ def print_banner(
     try:
         text = "\n".join(
             _banner_lines(
-                settings, pin=pin, ip=ip, urls=urls, warnings=warnings, qr_block=qr_block
+                settings,
+                pin=pin,
+                ip=ip,
+                urls=urls,
+                warnings=warnings,
+                qr_block=qr_block,
+                storage=storage,
             )
         )
         stream.write(text + "\n")
@@ -235,6 +253,7 @@ def print_banner(
             f"  Network URL : {urls['lan']}",
             f"  Pairing PIN : {pin}",
             f"  Pairing URL : {urls['pairing']}",
+            f"  Storage     : {_storage_line(settings, storage)}",
             "",
         ]
         fallback.extend(f"  ! {warning}" for warning in warnings)

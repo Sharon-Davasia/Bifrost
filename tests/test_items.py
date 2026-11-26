@@ -88,7 +88,37 @@ def test_snapshot_reports_configured_limits(authed_client, settings):
     assert payload["limits"] == {
         "max_upload_bytes": settings.max_upload_bytes,
         "max_note_chars": settings.max_note_chars,
+        "max_storage_bytes": settings.max_storage_bytes,
     }
+
+
+def test_snapshot_reports_storage_budget(authed_client, settings):
+    empty = authed_client.get("/api/items").json()["storage"]
+    assert empty == {
+        "limit_bytes": settings.max_storage_bytes,
+        "used_bytes": 0,
+        "remaining_bytes": settings.max_storage_bytes,
+    }
+
+    upload(authed_client, b"x" * 1000, filename="sized.bin")
+    authed_client.post("/api/note", json={"text": "hello"})
+
+    used = authed_client.get("/api/items").json()["storage"]
+    assert used["used_bytes"] == 1005
+    assert used["remaining_bytes"] == settings.max_storage_bytes - 1005
+
+
+def test_storage_budget_follows_configuration_and_deletion(isolated_client):
+    client, _app, _settings = isolated_client(max_storage_bytes=4096)
+    assert client.get("/api/items").json()["storage"]["limit_bytes"] == 4096
+
+    item = upload(client, b"y" * 3000, filename="big.bin").json()["item"]
+    budget = client.get("/api/items").json()["storage"]
+    assert budget["used_bytes"] == 3000
+    assert budget["remaining_bytes"] == 1096
+
+    assert client.delete(f"/api/items/{item['id']}").status_code == 200
+    assert client.get("/api/items").json()["storage"]["used_bytes"] == 0
 
 
 def test_snapshot_limits_follow_configuration(isolated_client):

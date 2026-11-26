@@ -176,6 +176,15 @@
             <span id="dropzone-hint" class="dz-hint">Share photos, videos, documents and more.</span>
           </button>
           <p id="upload-limit" class="upload-limit" hidden></p>
+          <div id="storage" class="storage" hidden>
+            <div class="storage-row">
+              <span class="storage-label">Inbox storage</span>
+              <span id="storage-text" class="storage-text" aria-live="polite"></span>
+            </div>
+            <div id="storage-meter" class="storage-meter" role="progressbar" aria-label="Inbox storage used" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div id="storage-fill" class="storage-fill"></div>
+            </div>
+          </div>
           <input id="file-input" class="visually-hidden" type="file" multiple tabindex="-1" aria-hidden="true">
           <ul id="upload-queue" class="upload-queue" aria-live="polite"></ul>
         </section>

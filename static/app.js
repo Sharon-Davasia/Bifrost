@@ -10,6 +10,7 @@
 
   var MAX_NOTE_CHARS = 100000; // fallback until the server reports its limit
   var DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024;
+  var DEFAULT_MAX_STORAGE_BYTES = 5 * 1024 * 1024 * 1024;
   var MAX_DEVICE_CHARS = 40;
   var MAX_CONCURRENT_UPLOADS = 3;
   var STORAGE_DEVICE = 'bifrost.device';
@@ -37,6 +38,8 @@
     rowTimers: new Map(),
     maxNoteChars: MAX_NOTE_CHARS,
     maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES,
+    maxStorageBytes: DEFAULT_MAX_STORAGE_BYTES,
+    storageUsed: 0,
     selecting: false,
     selected: new Set(),
     bulkBusy: false
@@ -403,7 +406,7 @@
     return headers;
   }
 
-  function applyLimits(limits) {
+  function applyLimits(limits, storage) {
     if (limits && typeof limits === 'object') {
       if (Number.isFinite(limits.max_upload_bytes) && limits.max_upload_bytes > 0) {
         state.maxUploadBytes = limits.max_upload_bytes;
@@ -411,6 +414,17 @@
       if (Number.isFinite(limits.max_note_chars) && limits.max_note_chars > 0) {
         state.maxNoteChars = limits.max_note_chars;
       }
+    }
+    if (storage && typeof storage === 'object') {
+      if (Number.isFinite(storage.limit_bytes) && storage.limit_bytes > 0) {
+        state.maxStorageBytes = storage.limit_bytes;
+      }
+    } else if (
+      limits &&
+      Number.isFinite(limits.max_storage_bytes) &&
+      limits.max_storage_bytes > 0
+    ) {
+      state.maxStorageBytes = limits.max_storage_bytes;
     }
     if (state.maxUploadBytes) {
       dom.uploadLimit.textContent =
@@ -435,7 +449,7 @@
     if (!response.ok) throw new Error('Could not load the shared inbox.');
     var data = await readJsonSafe(response);
     // The snapshot also carries the server's configured limits.
-    applyLimits(data && data.limits);
+    applyLimits(data && data.limits, data && data.storage);
     return normalizeItems(data && data.items);
   }
 
@@ -726,6 +740,7 @@
     dom.emptyState.hidden = count > 0;
     dom.inboxCount.textContent = count + (count === 1 ? ' item' : ' items');
     syncSelectionUI();
+    updateStorage();
   }
 
   /* --------------------------------------------------- selecting many items */
@@ -791,6 +806,30 @@
       }
       card.classList.toggle('is-selected', on);
     });
+  }
+
+  function updateStorage() {
+    var limit = state.maxStorageBytes;
+    if (!limit) {
+      dom.storage.hidden = true;
+      return;
+    }
+    var used = 0;
+    state.items.forEach(function (item) {
+      // Notes record their length; files record the bytes received.
+      var size = typeof item.size === 'number' && item.size > 0 ? item.size : 0;
+      used += size;
+    });
+    var free = Math.max(0, limit - used);
+    var percent = Math.min(100, (used / limit) * 100);
+    dom.storageFill.style.width = (percent > 0 ? Math.max(percent, 1) : 0) + '%';
+    dom.storageMeter.setAttribute('aria-valuenow', String(Math.round(percent)));
+    dom.storageText.textContent =
+      formatBytes(free) + ' free of ' + formatBytes(limit) + ' · ' + formatBytes(used) + ' used';
+    state.storageUsed = used;
+    dom.storage.classList.toggle('is-high', percent >= 80 && percent < 99.5);
+    dom.storage.classList.toggle('is-full', percent >= 99.5);
+    dom.storage.hidden = false;
   }
 
   function updateItemTime(card, item) {
@@ -1094,10 +1133,27 @@
     };
   }
 
+  function pendingUploadBytes() {
+    var total = 0;
+    state.uploads.forEach(function (entry) {
+      if (entry.localOnly) return;
+      if (entry.status === 'queued' || entry.status === 'uploading') {
+        total += entry.file.size || 0;
+      }
+    });
+    return total;
+  }
+
   function handleFiles(fileList) {
     var files = Array.prototype.slice.call(fileList || []);
     if (!files.length) return;
     var tooLarge = 0;
+    var noRoom = 0;
+    // What the inbox can still take, minus what the queue is already sending.
+    var room = state.maxStorageBytes
+      ? Math.max(0, state.maxStorageBytes - state.storageUsed - pendingUploadBytes())
+      : Infinity;
+    var roomAtStart = room;
     files.forEach(function (file) {
       var entry = makeUploadEntry(file);
       // Fail fast rather than spending the user's bandwidth on a file the
@@ -1107,6 +1163,17 @@
         entry.localOnly = true;
         entry.error = 'Larger than the ' + formatBytes(state.maxUploadBytes) + ' per-file limit.';
         tooLarge += 1;
+      } else if (file.size > room) {
+        entry.status = 'failed';
+        entry.error =
+          'Needs ' +
+          formatBytes(file.size) +
+          ' but only ' +
+          formatBytes(room) +
+          ' is left in the inbox.';
+        noRoom += 1;
+      } else {
+        room -= file.size;
       }
       state.uploads.push(entry);
     });
@@ -1121,6 +1188,14 @@
         tooLarge === 1
           ? 'One file is larger than the ' + limit + ' limit.'
           : tooLarge + ' files are larger than the ' + limit + ' limit.',
+        'error'
+      );
+    }
+    if (noRoom) {
+      toast(
+        'Only ' +
+          formatBytes(roomAtStart) +
+          ' is left in the inbox. Delete something first.',
         'error'
       );
     }
@@ -1660,6 +1735,10 @@
     dom.fileInput = document.getElementById('file-input');
     dom.uploadQueue = document.getElementById('upload-queue');
     dom.uploadLimit = document.getElementById('upload-limit');
+    dom.storage = document.getElementById('storage');
+    dom.storageText = document.getElementById('storage-text');
+    dom.storageMeter = document.getElementById('storage-meter');
+    dom.storageFill = document.getElementById('storage-fill');
     dom.noteInput = document.getElementById('note-input');
     dom.noteCount = document.getElementById('note-count');
     dom.noteSend = document.getElementById('note-send');

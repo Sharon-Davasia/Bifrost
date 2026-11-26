@@ -44,7 +44,7 @@ from auth import (
 from config import PROJECT_DIR, Settings
 from database import Database, Item, Session, utc_now_iso
 from event_manager import EventManager
-from file_manager import FileManager, UploadError, is_valid_item_id
+from file_manager import FileManager, UploadError, is_valid_item_id, quota_message
 from network import LOOPBACK_HOSTNAMES, build_urls, detect_lan_ip, print_banner
 from thumbnail_manager import ThumbnailManager, ThumbnailUnavailable
 
@@ -296,7 +296,14 @@ def create_app(
         thumbs_removed = await run_in_threadpool(state.thumbnails.cleanup_orphans, item_ids)
         state.events.start()
         if state.show_banner:
-            print_banner(config, pin=state.pin, ip=state.lan_ip, warnings=state.warnings)
+            storage = await run_in_threadpool(state.files.storage_report)
+            print_banner(
+                config,
+                pin=state.pin,
+                ip=state.lan_ip,
+                warnings=state.warnings,
+                storage=storage,
+            )
         logger.info(
             "Bifrost started with %d item(s); removed %d partial, %d orphan and"
             " %d stale thumbnail file(s).",
@@ -484,6 +491,7 @@ def create_app(
     @app.get("/api/items")
     async def list_items(session: Session = Depends(require_session)) -> JSONResponse:
         items = await run_in_threadpool(state.db.list_items)
+        storage = await run_in_threadpool(state.files.storage_report)
         return JSONResponse(
             {
                 "items": [item.to_public() for item in items],
@@ -493,7 +501,10 @@ def create_app(
                 "limits": {
                     "max_upload_bytes": config.max_upload_bytes,
                     "max_note_chars": config.max_note_chars,
+                    "max_storage_bytes": config.max_storage_bytes,
                 },
+                # How much of the inbox budget is already in use.
+                "storage": storage,
             },
             headers={"cache-control": "no-store"},
         )
@@ -550,6 +561,15 @@ def create_app(
                 400,
                 "Note exceeds the maximum of"
                 f" {config.max_note_chars} characters.",
+            )
+
+        used = await run_in_threadpool(state.db.total_item_bytes)
+        if used + len(text) > config.max_storage_bytes:
+            raise ApiError(
+                507,
+                quota_message(
+                    config.max_storage_bytes - used, config.max_storage_bytes
+                ),
             )
 
         sender = _resolve_sender(request, session, config)

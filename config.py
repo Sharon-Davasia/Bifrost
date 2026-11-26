@@ -16,6 +16,7 @@ PROJECT_DIR = Path(__file__).resolve().parent
 
 DEFAULT_DATA_DIR = PROJECT_DIR / "data"
 DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB
+DEFAULT_MAX_STORAGE_BYTES = 5 * 1024 * 1024 * 1024  # 5 GB for the whole inbox
 DEFAULT_UPLOAD_CHUNK_BYTES = 1024 * 1024  # 1 MB
 DEFAULT_MIN_FREE_SPACE_BYTES = 256 * 1024 * 1024  # 256 MB
 DEFAULT_SESSION_DAYS = 30
@@ -90,6 +91,7 @@ class Settings:
     host_ip: str | None = None
     data_dir: Path = DEFAULT_DATA_DIR
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES
+    max_storage_bytes: int = DEFAULT_MAX_STORAGE_BYTES
     upload_chunk_bytes: int = DEFAULT_UPLOAD_CHUNK_BYTES
     min_free_space_bytes: int = DEFAULT_MIN_FREE_SPACE_BYTES
     session_days: int = DEFAULT_SESSION_DAYS
@@ -134,6 +136,9 @@ class Settings:
             max_upload_bytes=_env_int(
                 "BIFROST_MAX_UPLOAD_BYTES", DEFAULT_MAX_UPLOAD_BYTES, minimum=1
             ),
+            max_storage_bytes=_env_int(
+                "BIFROST_MAX_STORAGE_BYTES", DEFAULT_MAX_STORAGE_BYTES, minimum=1
+            ),
             upload_chunk_bytes=_env_int(
                 "BIFROST_UPLOAD_CHUNK_BYTES",
                 DEFAULT_UPLOAD_CHUNK_BYTES,
@@ -171,6 +176,8 @@ class Settings:
                 ) from exc
         if self.max_upload_bytes < 1:
             raise ConfigError("BIFROST_MAX_UPLOAD_BYTES must be a positive integer.")
+        if self.max_storage_bytes < 1:
+            raise ConfigError("BIFROST_MAX_STORAGE_BYTES must be a positive integer.")
         if not 4096 <= self.upload_chunk_bytes <= 64 * 1024 * 1024:
             raise ConfigError(
                 "BIFROST_UPLOAD_CHUNK_BYTES must be between 4096 and 67108864, "

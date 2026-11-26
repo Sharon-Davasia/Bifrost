@@ -78,6 +78,9 @@ See [`docs/screenshots/README.md`](docs/screenshots/README.md) for capture notes
 - **Text notes** up to 100,000 characters with copy, delete and `Ctrl/⌘ + Enter`.
 - **Multi-select delete** — tap *Select*, tick any number of items and remove them in one
   confirmed batch, with live progress as each one goes.
+- **A 5 GB inbox budget, visible** — the terminal banner and the upload card both show how
+  much of the allowance is used and how much is left, and uploads that would overflow it
+  are refused with `507` before any bytes are wasted.
 - **Live updates over Server-Sent Events**, with automatic reconnect and snapshot
   reconciliation (no polling).
 - **Cached image thumbnails** generated with Pillow, EXIF orientation aware, with a
@@ -457,6 +460,7 @@ startup. Invalid values raise a clear startup error instead of failing mid-trans
 | `BIFROST_HOST_IP` | *auto-detect* | Advertised LAN IP (override for VPN/Hyper-V/WSL/Tailscale) |
 | `BIFROST_DATA_DIR` | `./data` | Storage directory, resolved relative to the project unless absolute |
 | `BIFROST_MAX_UPLOAD_BYTES` | `5368709120` (5 GB) | Per-file upload limit |
+| `BIFROST_MAX_STORAGE_BYTES` | `5368709120` (5 GB) | Total budget for everything in the inbox |
 | `BIFROST_UPLOAD_CHUNK_BYTES` | `1048576` (1 MB) | Streaming write size |
 | `BIFROST_MIN_FREE_SPACE_BYTES` | `268435456` (256 MB) | Safety reserve that must remain free |
 | `BIFROST_SESSION_DAYS` | `30` | Session lifetime |
@@ -509,6 +513,37 @@ start.bat
 ```
 
 > Browser and OS limits still apply — some phones cap individual uploads well below 5 GB.
+
+### Inbox storage budget
+
+Separately from the per-file limit, the whole inbox has an allowance —
+**5 GB by default** (`BIFROST_MAX_STORAGE_BYTES`). It counts the recorded size of every
+item: file bytes plus note characters. Thumbnails and the SQLite database are not counted;
+they are small next to the files themselves.
+
+The remaining space is shown in two places:
+
+```
+  Inbox storage   : 312 MB of 5.0 GB used (4.7 GB free)     <- terminal banner
+```
+
+```
+  Inbox storage                                   4.7 GB free of 5 GB · 312 MB used
+  [###...................................................]  <- upload card meter
+```
+
+An upload (or note) that would go over the allowance is rejected with `507` and a message
+saying how much is actually free, and the partial file is removed. Deleting items gives
+the space straight back. In-flight uploads reserve their declared size, so three
+simultaneous uploads cannot all slip past the check.
+
+```bat
+set BIFROST_MAX_STORAGE_BYTES=21474836480
+start.bat
+```
+
+If you raise the per-file limit above the budget, one file still cannot exceed the inbox
+allowance — raise `BIFROST_MAX_STORAGE_BYTES` as well.
 
 ---
 
@@ -611,6 +646,12 @@ restart does generate a new PIN.
 The file is larger than `BIFROST_MAX_UPLOAD_BYTES` (5 GB by default). Raise the limit or
 split the file.
 
+### Uploads fail with “The inbox is full: only … is free.”
+
+The shared inbox has used up its `BIFROST_MAX_STORAGE_BYTES` allowance (5 GB by default).
+Delete some items — the meter in the upload card and the line in the terminal banner show
+the current numbers — or raise the limit and restart.
+
 ### Uploads fail with “Not enough free disk space.”
 
 Free up space on the drive that holds `BIFROST_DATA_DIR`; Bifrost keeps a 256 MB reserve
@@ -699,7 +740,7 @@ always JSON: `{"error": "..."}`.
 | `GET` | `/api/pairing-info` | Current PIN for the host browser only | `200` · `403` |
 | `POST` | `/api/upload` | Raw streaming file upload | `201` · `400` · `401` · `413` · `507` |
 | `POST` | `/api/note` | Create a text note | `201` · `400` · `401` |
-| `GET` | `/api/items` | List inbox items (newest first) + configured limits | `200` · `401` |
+| `GET` | `/api/items` | List inbox items (newest first) + limits + storage budget | `200` · `401` |
 | `GET` | `/api/files/{id}` | Stream a file (supports Range) | `200` · `206` · `404` · `416` |
 | `GET` | `/api/thumb/{id}` | Cached JPEG thumbnail | `200` · `404` · `415` |
 | `DELETE` | `/api/items/{id}` | Delete item metadata and file | `200` · `404` |
@@ -730,6 +771,7 @@ Coverage highlights:
 | Authentication | PIN format/hashing, HttpOnly cookie flags, invalid PIN, five failures, lockout, correct PIN during lockout, lockout expiry, session expiry, sessions surviving a restart, no raw token in SQLite |
 | Pairing info | Loopback allowed; remote peer, foreign `Host`, wrong port, non-loopback hostname and foreign `Origin` rejected; `Cache-Control: no-store` |
 | Uploads | Raw body, multiple files, byte-exact content, declared-length rejection, streamed-limit enforcement with no `Content-Length`, 5 GB boundary, `.part` cleanup, cancellation, failed insert, disk-full (507), concurrent same-name uploads, UUID storage names |
+| Storage budget | Snapshot accounting, exact-fill boundary, declared and streamed rejection with `507`, quota released on delete, notes sharing the budget, banner line |
 | Filenames | Traversal, Windows reserved names, invalid characters, trailing dots/spaces, control characters, Hindi/emoji, length limits, safe extensions |
 | Items | Notes, empty note, exact 100,000-character limit, ordering, sender attribution, downloads, Range `206` + `Content-Range`, Unicode `filename*`, deletion, missing 404, persistence across restart |
 | Thumbnails | Generation and bounds, caching (no regeneration), cache invalidation, corrupt image, HEIC, decompression-bomb protection, EXIF orientation, concurrency |
@@ -792,6 +834,16 @@ Work through these on real devices. Tick each box only when it actually passes.
       leaves selection mode without deleting anything.
 - [ ] If another device deletes a ticked item first, it simply drops out of the
       selection instead of failing the batch.
+
+### 6b. Storage budget
+
+- [ ] The upload card shows a meter — “5 GB free of 5 GB · 0 B used” on a fresh inbox.
+- [ ] Upload a file: the meter drops by roughly that file's size and the “free” number
+      follows.
+- [ ] Delete the file: the space comes back immediately.
+- [ ] The terminal banner's `Inbox storage` line agrees with the meter.
+- [ ] Set `BIFROST_MAX_STORAGE_BYTES=1000000`, restart, and try a 2 MB upload: it is
+      refused with `507` and “The inbox is full”, and no `.part` file is left behind.
 
 ### 7. Duplicate filenames
 

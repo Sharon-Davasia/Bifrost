@@ -205,6 +205,9 @@ class FileManager:
         )
         self._downloads: dict[str, int] = {}
         self._background_tasks: set[asyncio.Task[None]] = set()
+        #: Bytes promised to uploads that are still streaming.  Mutated only on
+        #: the event loop, so no lock is required.
+        self._inflight_bytes = 0
 
     # ------------------------------------------------------------- utilities
     @property
@@ -213,6 +216,35 @@ class FileManager:
 
     def free_bytes(self) -> int:
         return int(self._free_space_provider(self.files_dir))
+
+    @property
+    def max_storage_bytes(self) -> int:
+        return self.settings.max_storage_bytes
+
+    def storage_used_bytes(self) -> int:
+        """Committed bytes plus the reservations of in-flight uploads."""
+        return self.db.total_item_bytes() + self._inflight_bytes
+
+    def storage_report(self) -> dict[str, int]:
+        """Quota state for the interface and the banner.
+
+        Reports committed bytes only: a reservation is not an item yet, and the
+        number here is what the inbox actually holds.
+        """
+        limit = self.max_storage_bytes
+        used = self.db.total_item_bytes()
+        return {
+            "limit_bytes": limit,
+            "used_bytes": used,
+            "remaining_bytes": max(0, limit - used),
+        }
+
+    def _ensure_quota(self, extra_bytes: int, db_used: int) -> None:
+        """Reject an upload that would push the inbox over its storage cap."""
+        limit = self.max_storage_bytes
+        if db_used + extra_bytes <= limit:
+            return
+        raise InsufficientStorage(quota_message(limit - min(db_used, limit), limit))
 
     def _ensure_free(self, extra_bytes: int = 0) -> None:
         free = self.free_bytes()
@@ -259,8 +291,15 @@ class FileManager:
             if declared_length > self.max_upload_bytes:
                 raise UploadTooLarge(
                     "File exceeds the maximum allowed size of"
-                    f" {_human_bytes(self.max_upload_bytes)}."
+                    f" {human_bytes(self.max_upload_bytes)}."
                 )
+
+        db_used = self.db.total_item_bytes()
+        # Reserve the declared size up front so concurrent uploads cannot all
+        # believe they fit; unknown-length bodies grow their reservation.
+        reserved = declared_length or 0
+        self._ensure_quota(self._inflight_bytes + reserved, db_used)
+        if declared_length is not None:
             self._ensure_free(declared_length)
         else:
             self._ensure_free(0)
@@ -274,6 +313,7 @@ class FileManager:
         received = 0
         next_disk_check = _DISK_CHECK_INTERVAL_BYTES
 
+        self._inflight_bytes += reserved
         try:
             async with aiofiles.open(part_path, "wb") as handle:
                 async for chunk in stream:
@@ -283,17 +323,26 @@ class FileManager:
                     if received > self.max_upload_bytes:
                         raise UploadTooLarge(
                             "File exceeds the maximum allowed size of"
-                            f" {_human_bytes(self.max_upload_bytes)}."
+                            f" {human_bytes(self.max_upload_bytes)}."
                         )
+                    if declared_length is None:
+                        self._inflight_bytes += len(chunk)
+                        reserved += len(chunk)
+                    self._ensure_quota(self._inflight_bytes, db_used)
                     await handle.write(chunk)
                     if received >= next_disk_check:
                         next_disk_check = received + _DISK_CHECK_INTERVAL_BYTES
+                        db_used = self.db.total_item_bytes()
                         self._ensure_free(0)
                 await handle.flush()
                 self._fsync(handle)
 
             if declared_length is not None and received != declared_length:
                 raise InvalidUpload("Upload was incomplete. Please retry.")
+
+            # The reservation becomes a committed row just below.
+            self._release_reservation(reserved)
+            reserved = 0
 
             # Promote the finished upload atomically; the UUID name is unique so
             # existing files are never overwritten.
@@ -315,12 +364,19 @@ class FileManager:
         except BaseException:
             # Client disconnect, cancellation, size/space failure or a failing
             # database insert: leave no partial artefacts behind.
+            self._release_reservation(reserved)
+            reserved = 0
             with contextlib.suppress(OSError):
                 await run_in_threadpool(_unlink_quietly, part_path)
             if moved:
                 with contextlib.suppress(OSError):
                     await run_in_threadpool(_unlink_quietly, final_path)
             raise
+
+    def _release_reservation(self, amount: int) -> None:
+        """Give back reserved bytes, never letting the counter drift negative."""
+        if amount:
+            self._inflight_bytes = max(0, self._inflight_bytes - amount)
 
     @staticmethod
     def _fsync(handle: object) -> None:
@@ -456,7 +512,8 @@ def _unlink_quietly(path: Path) -> bool:
         return False
 
 
-def _human_bytes(value: int) -> str:
+def human_bytes(value: int) -> str:
+    """Format a byte count for humans, e.g. ``4.7 GB``."""
     units = ["B", "KB", "MB", "GB", "TB"]
     size = float(value)
     for unit in units:
@@ -466,3 +523,12 @@ def _human_bytes(value: int) -> str:
             return f"{size:.0f} {unit}" if size >= 10 else f"{size:.1f} {unit}"
         size /= 1024
     return f"{value} B"
+
+
+def quota_message(remaining: int, limit: int) -> str:
+    """Explain a write that the inbox storage cap refuses."""
+    return (
+        "The inbox is full: only"
+        f" {human_bytes(max(0, remaining))} of {human_bytes(limit)} is free."
+        " Delete something to make room."
+    )
