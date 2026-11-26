@@ -36,7 +36,10 @@
     lockoutTimer: null,
     rowTimers: new Map(),
     maxNoteChars: MAX_NOTE_CHARS,
-    maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES
+    maxUploadBytes: DEFAULT_MAX_UPLOAD_BYTES,
+    selecting: false,
+    selected: new Set(),
+    bulkBusy: false
   };
 
   var cards = new Map();
@@ -659,6 +662,9 @@
     state.items = [];
     state.pendingEvents.length = 0;
     state.syncing = false;
+    state.selecting = false;
+    state.selected.clear();
+    state.bulkBusy = false;
     cards.forEach(function (card) {
       card.remove();
     });
@@ -710,8 +716,81 @@
       }
     });
     var count = state.items.length;
+    if (state.selecting) {
+      state.selected.forEach(function (id) {
+        // Someone else deleted it, or it is gone after a resync.
+        if (!seen.has(id)) state.selected.delete(id);
+      });
+      if (!count) state.selecting = false;
+    }
     dom.emptyState.hidden = count > 0;
     dom.inboxCount.textContent = count + (count === 1 ? ' item' : ' items');
+    syncSelectionUI();
+  }
+
+  /* --------------------------------------------------- selecting many items */
+  function setSelecting(on) {
+    if (state.bulkBusy) return;
+    if (on && !state.items.length) on = false;
+    state.selecting = on;
+    if (!on) state.selected.clear();
+    syncSelectionUI();
+  }
+
+  function toggleSelected(id, on) {
+    if (!state.selecting || state.bulkBusy) return;
+    if (on) state.selected.add(id);
+    else state.selected.delete(id);
+    syncSelectionUI();
+  }
+
+  function toggleAllSelected() {
+    if (!state.selecting || state.bulkBusy) return;
+    if (state.selected.size === state.items.length) {
+      state.selected.clear();
+    } else {
+      state.items.forEach(function (item) {
+        state.selected.add(item.id);
+      });
+    }
+    syncSelectionUI();
+  }
+
+  function syncSelectionUI() {
+    var selecting = state.selecting;
+    var count = state.selected.size;
+    var total = state.items.length;
+    document.body.classList.toggle('is-selecting', selecting);
+    dom.inboxSection.classList.toggle('is-selecting', selecting);
+    dom.selectToggle.hidden = total === 0;
+    dom.selectToggle.setAttribute('aria-pressed', selecting ? 'true' : 'false');
+    dom.selectToggleLabel.textContent = selecting ? 'Done' : 'Select';
+    dom.selectionBar.hidden = !selecting;
+    if (!state.bulkBusy) {
+      // While deleting, the progress line owns this label.
+      dom.selectionCount.textContent =
+        count === 0
+          ? 'Nothing selected'
+          : count.toLocaleString() + (count === 1 ? ' item selected' : ' items selected');
+    }
+    dom.selectionAll.textContent = count > 0 && count === total ? 'Clear' : 'Select all';
+    dom.selectionAll.disabled = state.bulkBusy || total === 0;
+    dom.selectionCancel.disabled = state.bulkBusy;
+    dom.selectionDelete.disabled = state.bulkBusy || count === 0;
+    dom.selectionDeleteLabel.textContent = state.bulkBusy
+      ? 'Deleting…'
+      : count === 0
+        ? 'Delete'
+        : 'Delete ' + count.toLocaleString();
+    cards.forEach(function (card, id) {
+      var input = card.querySelector('.item-check input');
+      var on = selecting && state.selected.has(id);
+      if (input) {
+        input.checked = on;
+        input.disabled = state.bulkBusy;
+      }
+      card.classList.toggle('is-selected', on);
+    });
   }
 
   function updateItemTime(card, item) {
@@ -795,6 +874,24 @@
     var card = el('article', 'item');
     card.dataset.itemId = item.id;
     card.dataset.kind = item.kind === 'note' ? 'note' : 'file';
+
+    var selectLabel = item.kind === 'note' ? 'this note' : item.name || 'this file';
+    var check = el('span', 'item-check');
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.setAttribute('aria-label', 'Select ' + selectLabel);
+    checkbox.addEventListener('change', function () {
+      toggleSelected(item.id, checkbox.checked);
+    });
+    check.appendChild(checkbox);
+    card.appendChild(check);
+
+    card.addEventListener('click', function (event) {
+      if (!state.selecting) return;
+      var target = event.target;
+      if (target && target.tagName === 'INPUT') return;
+      toggleSelected(item.id, !state.selected.has(item.id));
+    });
 
     card.appendChild(makeMedia(item));
 
@@ -894,28 +991,91 @@
     toast(ok ? 'Note copied to clipboard.' : 'Could not copy the note.', ok ? 'success' : 'error');
   }
 
+  async function requestDelete(id, allowMissing) {
+    var response = await fetch('/api/items/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: deviceHeaders()
+    });
+    if (response.status === 401) {
+      handleSessionExpired();
+      var expired = new Error('Your session expired.');
+      expired.sessionExpired = true;
+      throw expired;
+    }
+    // Already deleted elsewhere: nothing left to do.
+    if (allowMissing && response.status === 404) return;
+    if (!response.ok) {
+      var data = await readJsonSafe(response);
+      throw new Error((data && data.error) || 'Could not delete the item.');
+    }
+  }
+
   async function deleteItem(item) {
     var label = item.kind === 'note' ? 'this note' : '"' + (item.name || 'this file') + '"';
     if (!window.confirm('Delete ' + label + '? This cannot be undone.')) return;
     try {
-      var response = await fetch('/api/items/' + encodeURIComponent(item.id), {
-        method: 'DELETE',
-        credentials: 'same-origin',
-        headers: deviceHeaders()
-      });
-      if (response.status === 401) {
-        handleSessionExpired();
-        return;
-      }
-      if (!response.ok) {
-        var data = await readJsonSafe(response);
-        throw new Error((data && data.error) || 'Could not delete the item.');
-      }
+      await requestDelete(item.id, false);
       removeItem(item.id);
       toast(item.kind === 'note' ? 'Note deleted.' : 'File deleted.', 'success');
     } catch (error) {
+      if (error.sessionExpired) return;
       toast(error.message || 'Could not delete the item.', 'error');
     }
+  }
+
+  async function deleteSelected() {
+    if (state.bulkBusy || !state.selected.size) return;
+    var ids = Array.from(state.selected);
+    var question =
+      'Delete ' +
+      (ids.length === 1 ? '1 selected item' : ids.length + ' selected items') +
+      '? This cannot be undone.';
+    if (!window.confirm(question)) return;
+
+    state.bulkBusy = true;
+    syncSelectionUI();
+    var deleted = 0;
+    var failed = 0;
+    var expired = false;
+    for (var index = 0; index < ids.length; index += 1) {
+      var id = ids[index];
+      if (!state.selected.has(id)) continue;
+      dom.selectionCount.textContent =
+        'Deleting ' + (index + 1).toLocaleString() + ' of ' + ids.length.toLocaleString() + '…';
+      try {
+        await requestDelete(id, true);
+        state.selected.delete(id);
+        removeItem(id);
+        deleted += 1;
+      } catch (error) {
+        if (error.sessionExpired) {
+          expired = true;
+          break;
+        }
+        failed += 1;
+      }
+    }
+    state.bulkBusy = false;
+    if (expired) return;
+
+    if (!failed) {
+      setSelecting(false);
+      toast(
+        deleted === 1 ? '1 item deleted.' : deleted.toLocaleString() + ' items deleted.',
+        'success'
+      );
+      return;
+    }
+    if (state.selected.size) {
+      syncSelectionUI();
+    } else {
+      setSelecting(false);
+    }
+    toast(
+      failed === 1 ? '1 item could not be deleted.' : failed + ' items could not be deleted.',
+      'error'
+    );
   }
 
   /* --------------------------------------------------------------- uploads */
@@ -1413,6 +1573,22 @@
     });
   }
 
+  function setupInbox() {
+    dom.selectToggle.addEventListener('click', function () {
+      setSelecting(!state.selecting);
+    });
+    dom.selectionAll.addEventListener('click', toggleAllSelected);
+    dom.selectionCancel.addEventListener('click', function () {
+      setSelecting(false);
+    });
+    dom.selectionDelete.addEventListener('click', deleteSelected);
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape' || !state.selecting) return;
+      event.preventDefault();
+      setSelecting(false);
+    });
+  }
+
   function setupNote() {
     dom.noteInput.addEventListener('input', updateNoteCount);
     dom.noteSend.addEventListener('click', sendNote);
@@ -1487,9 +1663,18 @@
     dom.noteInput = document.getElementById('note-input');
     dom.noteCount = document.getElementById('note-count');
     dom.noteSend = document.getElementById('note-send');
+    dom.inboxSection = document.getElementById('inbox');
     dom.inboxList = document.getElementById('inbox-list');
     dom.inboxCount = document.getElementById('inbox-count');
     dom.emptyState = document.getElementById('empty-state');
+    dom.selectToggle = document.getElementById('select-toggle');
+    dom.selectToggleLabel = document.getElementById('select-toggle-label');
+    dom.selectionBar = document.getElementById('selection-bar');
+    dom.selectionCount = document.getElementById('selection-count');
+    dom.selectionAll = document.getElementById('selection-all');
+    dom.selectionCancel = document.getElementById('selection-cancel');
+    dom.selectionDelete = document.getElementById('selection-delete');
+    dom.selectionDeleteLabel = document.getElementById('selection-delete-label');
     dom.deviceDialog = document.getElementById('device-dialog');
     dom.deviceForm = document.getElementById('device-form');
     dom.deviceInput = document.getElementById('device-input');
@@ -1506,6 +1691,7 @@
     setupDeviceDialog();
     setupDropzone();
     setupNote();
+    setupInbox();
     setupConnectivity();
     updateNoteCount();
     setConnection('idle');

@@ -76,6 +76,8 @@ See [`docs/screenshots/README.md`](docs/screenshots/README.md) for capture notes
 - **Upload queue in the browser** with three concurrent transfers, per-file progress,
   success/failure states and retry.
 - **Text notes** up to 100,000 characters with copy, delete and `Ctrl/⌘ + Enter`.
+- **Multi-select delete** — tap *Select*, tick any number of items and remove them in one
+  confirmed batch, with live progress as each one goes.
 - **Live updates over Server-Sent Events**, with automatic reconnect and snapshot
   reconciliation (no polling).
 - **Cached image thumbnails** generated with Pillow, EXIF orientation aware, with a
@@ -210,7 +212,7 @@ Bifrost/
 ├── static/
 │   ├── index.html          Single-page interface
 │   ├── style.css           Design system and responsive layout
-│   ├── app.js              Authentication, uploads, SSE, inbox rendering, toasts
+│   ├── app.js              Authentication, uploads, SSE, inbox rendering, multi-select, toasts
 │   └── favicon.svg
 ├── tests/
 │   ├── conftest.py         Isolated data dirs, fake clock, ASGI helpers
@@ -781,6 +783,15 @@ Work through these on real devices. Tick each box only when it actually passes.
 
 - [ ] With three devices connected, delete an item on one.
 - [ ] It disappears from all three immediately.
+- [ ] Tap **Select** in the inbox header: every item reveals a checkbox and a bulk bar
+      slides up from the bottom.
+- [ ] Tick three items — the bar reads “3 items selected” and the button reads
+      “Delete 3” — then tap it. One confirmation covers all three, and all three
+      disappear from every device.
+- [ ] **Select all** flips to **Clear** once everything is ticked; **Cancel** (or `Esc`)
+      leaves selection mode without deleting anything.
+- [ ] If another device deletes a ticked item first, it simply drops out of the
+      selection instead of failing the batch.
 
 ### 7. Duplicate filenames
 

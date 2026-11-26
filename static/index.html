@@ -194,10 +194,14 @@
           </div>
         </section>
 
-        <section class="inbox" aria-labelledby="inbox-title">
+        <section id="inbox" class="inbox" aria-labelledby="inbox-title">
           <div class="inbox-head">
             <h2 id="inbox-title">Shared inbox</h2>
             <span id="inbox-count" class="pill">0 items</span>
+            <button type="button" id="select-toggle" class="btn btn-ghost btn-sm" aria-pressed="false" hidden>
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-check"></use></svg>
+              <span id="select-toggle-label">Select</span>
+            </button>
           </div>
           <div id="inbox-list" class="inbox-list"></div>
           <div id="empty-state" class="empty" hidden>
@@ -208,6 +212,18 @@
             <p class="empty-hint muted">Send a file or note to see it appear here.</p>
           </div>
         </section>
+
+        <div id="selection-bar" class="selection-bar" role="region" aria-label="Bulk actions" hidden>
+          <p id="selection-count" class="selection-count" aria-live="polite">Nothing selected</p>
+          <div class="selection-actions">
+            <button type="button" id="selection-all" class="btn btn-ghost btn-sm">Select all</button>
+            <button type="button" id="selection-cancel" class="btn btn-ghost btn-sm">Cancel</button>
+            <button type="button" id="selection-delete" class="btn btn-danger" disabled>
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"></use></svg>
+              <span id="selection-delete-label">Delete</span>
+            </button>
+          </div>
+        </div>
       </div>
     </main>
 

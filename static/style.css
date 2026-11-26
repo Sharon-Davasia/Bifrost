@@ -547,6 +547,29 @@ textarea {
   background: var(--surface-muted);
 }
 
+.btn-sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #9a1c13;
+  border-color: #9a1c13;
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .btn-block {
   width: 100%;
 }
@@ -890,6 +913,7 @@ textarea {
 }
 
 .item {
+  position: relative;
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr) auto;
   gap: 12px;
@@ -1021,6 +1045,98 @@ textarea {
   width: 38px;
   height: 38px;
   color: #8b95a5;
+}
+
+/* ------------------------------------------------------- select many items */
+.item-check {
+  display: none;
+}
+
+.item-check input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.inbox.is-selecting .item {
+  padding-left: 44px;
+  cursor: pointer;
+}
+
+.inbox.is-selecting .item-check {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 2px;
+  width: 36px;
+}
+
+.inbox.is-selecting .item-actions {
+  display: none;
+}
+
+.item.is-selected {
+  border-color: var(--accent-border);
+  background: #fbfdff;
+  box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow);
+}
+
+.selection-bar {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  margin: 0 auto;
+  max-width: 696px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 14px;
+  background: rgba(255, 255, 255, 0.97);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  box-shadow: var(--shadow-raised);
+  animation: selection-bar-in 160ms ease-out;
+}
+
+.selection-bar[hidden] {
+  display: none;
+}
+
+.selection-count {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+body.is-selecting .app-main {
+  padding-bottom: 78px;
+}
+
+@keyframes selection-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ------------------------------------------------------------ empty state */
@@ -1290,6 +1406,27 @@ textarea {
 
   .note-foot {
     justify-content: space-between;
+  }
+
+  /* Two rows on phones: the count on top, the actions underneath. */
+  .selection-bar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 12px 12px;
+  }
+
+  .selection-count {
+    width: 100%;
+  }
+
+  .selection-actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  body.is-selecting .app-main {
+    padding-bottom: 116px;
   }
 }
 
