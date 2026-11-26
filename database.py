@@ -284,6 +284,14 @@ class Database:
             connection.execute("DELETE FROM items WHERE id = ?", (item_id,))
         return _row_to_item(row)
 
+    def total_item_bytes(self) -> int:
+        """Sum of every item's recorded size, in bytes (inbox quota usage)."""
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT COALESCE(SUM(size), 0) AS total FROM items"
+            ).fetchone()
+        return int(row["total"])
+
     def stored_names(self) -> set[str]:
         with self._connection() as connection:
             rows = connection.execute(

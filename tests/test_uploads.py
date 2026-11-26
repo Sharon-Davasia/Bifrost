@@ -229,6 +229,72 @@ def test_disk_space_checked_during_long_upload(settings_factory):
     assert not list(settings.files_dir.glob("*.part"))
 
 
+# ------------------------------------------------------------- storage budget
+def test_upload_rejected_when_inbox_is_full(isolated_client):
+    client, _app, settings = isolated_client(max_storage_bytes=1000)
+
+    assert upload(client, b"a" * 600, filename="first.bin").status_code == 201
+
+    response = upload(client, b"b" * 600, filename="second.bin")
+    assert response.status_code == 507
+    assert "inbox is full" in response.json()["error"].lower()
+    assert not list(settings.files_dir.glob("*.part"))
+    names = [item["name"] for item in client.get("/api/items").json()["items"]]
+    assert names == ["first.bin"]
+
+
+def test_storage_budget_allows_exactly_filling_it(isolated_client):
+    client, _app, _settings = isolated_client(max_storage_bytes=1000)
+
+    assert upload(client, b"a" * 1000, filename="exact.bin").status_code == 201
+    assert upload(client, b"b", filename="one-more.bin").status_code == 507
+
+
+def test_storage_budget_is_enforced_without_content_length(isolated_client):
+    client, _app, settings = isolated_client(max_storage_bytes=1000)
+
+    def chunks():
+        yield b"a" * 600
+        yield b"b" * 600  # 1200 bytes, no Content-Length header
+
+    response = client.post(
+        "/api/upload",
+        content=chunks(),
+        headers={
+            "x-filename": "streamed.bin",
+            "x-device-name": device_header("Test Device"),
+            "content-type": "application/octet-stream",
+        },
+    )
+    assert response.status_code == 507
+    assert not list(settings.files_dir.glob("*.part"))
+    assert client.get("/api/items").json()["items"] == []
+
+
+def test_deleting_an_item_frees_its_storage(isolated_client):
+    client, _app, _settings = isolated_client(max_storage_bytes=1000)
+
+    item = upload(client, b"a" * 900, filename="large.bin").json()["item"]
+    assert upload(client, b"b" * 200, filename="blocked.bin").status_code == 507
+
+    assert client.delete(f"/api/items/{item['id']}").status_code == 200
+    assert upload(client, b"c" * 900, filename="allowed.bin").status_code == 201
+
+
+def test_note_shares_the_storage_budget(isolated_client):
+    client, _app, _settings = isolated_client(max_storage_bytes=100)
+
+    assert upload(client, b"a" * 80, filename="file.bin").status_code == 201
+
+    response = client.post("/api/note", json={"text": "x" * 30})
+    assert response.status_code == 507
+    assert "inbox is full" in response.json()["error"].lower()
+
+    # 20 characters still fit in the remaining 20 bytes.
+    assert client.post("/api/note", json={"text": "y" * 20}).status_code == 201
+    assert client.get("/api/items").json()["storage"]["remaining_bytes"] == 0
+
+
 # ------------------------------------------------------------------ cleanup
 def test_failed_upload_leaves_no_part_file(settings_factory):
     settings = settings_factory()

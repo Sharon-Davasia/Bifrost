@@ -176,6 +176,31 @@ def test_banner_contains_required_information(settings_factory):
     assert "5.0 GB" in output
 
 
+def test_banner_reports_storage_usage(settings_factory):
+    settings = settings_factory(port=8123)
+    buffer = io.StringIO()
+    print_banner(
+        settings,
+        pin="004281",
+        ip="192.168.1.23",
+        storage={
+            "limit_bytes": 5 * 1024**3,
+            "used_bytes": 512 * 1024**2,
+            "remaining_bytes": 5 * 1024**3 - 512 * 1024**2,
+        },
+        stream=buffer,
+    )
+    output = buffer.getvalue()
+    assert "Inbox storage" in output
+    assert "512 MB of 5.0 GB used (4.5 GB free)" in output
+
+
+def test_banner_without_a_storage_report_still_works(settings_factory):
+    buffer = io.StringIO()
+    print_banner(settings_factory(), pin="004281", ip="192.168.1.23", stream=buffer)
+    assert "0 B of 5.0 GB used (5.0 GB free)" in buffer.getvalue()
+
+
 def test_banner_falls_back_to_plain_text_on_encoding_error(settings_factory):
     class AsciiConsole:
         """Mimics a Windows console that cannot render Unicode block glyphs."""
@@ -206,6 +231,7 @@ def test_banner_falls_back_to_plain_text_on_encoding_error(settings_factory):
 def test_config_from_env(monkeypatch, tmp_path):
     monkeypatch.setenv("BIFROST_PORT", "9001")
     monkeypatch.setenv("BIFROST_MAX_UPLOAD_BYTES", "10485760")
+    monkeypatch.setenv("BIFROST_MAX_STORAGE_BYTES", "1073741824")
     monkeypatch.setenv("BIFROST_COOKIE_SECURE", "1")
     monkeypatch.setenv("BIFROST_DATA_DIR", str(tmp_path / "storage"))
     monkeypatch.setenv("BIFROST_HOST_IP", "192.168.1.77")
@@ -213,6 +239,7 @@ def test_config_from_env(monkeypatch, tmp_path):
     settings = Settings.from_env()
     assert settings.port == 9001
     assert settings.max_upload_bytes == 10485760
+    assert settings.max_storage_bytes == 1073741824
     assert settings.cookie_secure is True
     assert settings.data_dir == tmp_path / "storage"
     assert settings.host_ip == "192.168.1.77"
@@ -229,6 +256,7 @@ def test_default_data_dir_is_project_relative(monkeypatch):
         "BIFROST_DATA_DIR",
         "BIFROST_PORT",
         "BIFROST_MAX_UPLOAD_BYTES",
+        "BIFROST_MAX_STORAGE_BYTES",
         "BIFROST_COOKIE_SECURE",
         "BIFROST_HOST_IP",
     ):
@@ -237,6 +265,7 @@ def test_default_data_dir_is_project_relative(monkeypatch):
     assert settings.data_dir == PROJECT_DIR / "data"
     assert settings.port == 8000
     assert settings.max_upload_bytes == 5 * 1024**3
+    assert settings.max_storage_bytes == 5 * 1024**3
     assert settings.min_free_space_bytes == 256 * 1024 * 1024
     assert settings.session_days == 30
     assert settings.pin_attempts == 5
@@ -252,6 +281,8 @@ def test_default_data_dir_is_project_relative(monkeypatch):
         ("BIFROST_PORT", "70000"),
         ("BIFROST_PORT", "0"),
         ("BIFROST_MAX_UPLOAD_BYTES", "0"),
+        ("BIFROST_MAX_STORAGE_BYTES", "0"),
+        ("BIFROST_MAX_STORAGE_BYTES", "lots"),
         ("BIFROST_UPLOAD_CHUNK_BYTES", "12"),
         ("BIFROST_HOST_IP", "not-an-ip"),
         ("BIFROST_COOKIE_SECURE", "maybe"),
