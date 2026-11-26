@@ -230,6 +230,20 @@ def test_disk_space_checked_during_long_upload(settings_factory):
 
 
 # ------------------------------------------------------------- storage budget
+def test_storage_usage_is_logged_when_it_changes(authed_client, caplog):
+    import logging
+
+    with caplog.at_level(logging.INFO, logger="bifrost"):
+        assert upload(authed_client, b"x" * 4096, filename="logged.bin").status_code == 201
+        authed_client.post("/api/note", json={"text": "a note"})
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(message.startswith("Upload stored. Inbox storage:") for message in messages)
+    assert any(message.startswith("Note stored. Inbox storage:") for message in messages)
+    assert any("of 5.0 GB used" in message for message in messages)
+
+
+
 def test_upload_rejected_when_inbox_is_full(isolated_client):
     client, _app, settings = isolated_client(max_storage_bytes=1000)
 
