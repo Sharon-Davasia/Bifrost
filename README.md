@@ -521,7 +521,7 @@ Separately from the per-file limit, the whole inbox has an allowance —
 item: file bytes plus note characters. Thumbnails and the SQLite database are not counted;
 they are small next to the files themselves.
 
-The remaining space is shown in two places:
+The remaining space is shown in two places, and both stay current:
 
 ```
   Inbox storage   : 312 MB of 5.0 GB used (4.7 GB free)     <- terminal banner
@@ -530,6 +530,14 @@ The remaining space is shown in two places:
 ```
   Inbox storage                                   4.7 GB free of 5 GB · 312 MB used
   [###...................................................]  <- upload card meter
+```
+
+The terminal line is reprinted after every upload, note and deletion, so it tracks the
+inbox without restarting the server:
+
+```
+Upload stored. Inbox storage: 3.8 MB of 5.0 GB used (5.0 GB free)
+Item deleted. Inbox storage: 2.4 MB of 5.0 GB used (5.0 GB free)
 ```
 
 An upload (or note) that would go over the allowance is rejected with `507` and a message
@@ -661,6 +669,13 @@ so the operating system never runs out of room mid-transfer.
 
 Only formats Pillow can decode produce thumbnails; HEIC from iPhones and some RAW formats
 fall back to a file icon. This never blocks the upload itself.
+
+### A new button does nothing, or the page looks out of date
+
+The browser is running a cached copy of `app.js` / `style.css`. Bifrost now sends
+`cache-control: no-cache` for its static files, so they are revalidated on every load
+(a cheap `304` unless they changed), and the page references them with a versioned URL.
+If you are on an older copy, one hard reload fixes it: **Ctrl + F5** (or **⌘ + Shift + R**).
 
 ### “Connection lost. Reconnecting…”
 

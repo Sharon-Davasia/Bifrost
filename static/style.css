@@ -39,6 +39,13 @@
   box-sizing: border-box;
 }
 
+/* The hidden attribute must win over any component display rule (.btn, .card,
+   .app-main, ...). Without this an element with [hidden] stays visible: an
+   author `display` always beats the browser's default [hidden] rule. */
+body [hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -688,10 +695,6 @@ textarea {
   gap: 5px;
 }
 
-.storage[hidden] {
-  display: none;
-}
-
 .storage-row {
   display: flex;
   align-items: baseline;
@@ -1157,10 +1160,6 @@ textarea {
   border-radius: 14px;
   box-shadow: var(--shadow-raised);
   animation: selection-bar-in 160ms ease-out;
-}
-
-.selection-bar[hidden] {
-  display: none;
 }
 
 .selection-count {

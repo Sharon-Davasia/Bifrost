@@ -772,6 +772,7 @@
   }
 
   function syncSelectionUI() {
+    if (!dom.inboxSection || !dom.selectionBar) return;
     var selecting = state.selecting;
     var count = state.selected.size;
     var total = state.items.length;
@@ -809,6 +810,7 @@
   }
 
   function updateStorage() {
+    if (!dom.storage) return;
     var limit = state.maxStorageBytes;
     if (!limit) {
       dom.storage.hidden = true;

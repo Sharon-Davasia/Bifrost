@@ -334,6 +334,30 @@ def test_health_of_static_page(client):
     assert response.headers["referrer-policy"] == "no-referrer"
 
 
+def test_static_assets_are_revalidated_not_heuristically_cached(client):
+    """A stale app.js in the browser cache silently breaks the whole interface."""
+    for path in ("/static/app.js", "/static/style.css"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache"
+
+
+def test_index_references_versioned_assets(client):
+    """The ?v= suffix pins a URL that an older browser may still have cached."""
+    html = client.get("/").text
+    assert "/static/app.js?v=" in html
+    assert "/static/style.css?v=" in html
+
+
+def test_css_forces_hidden_attribute_to_stay_hidden():
+    """`hidden` loses to any author display rule unless the stylesheet forces it."""
+    from main import STATIC_DIR
+
+    css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+    assert "[hidden]" in css
+    assert "display: none !important" in css
+
+
 def test_unknown_api_route_returns_json_error(client):
     response = client.get("/api/does-not-exist")
     assert response.status_code in {404, 405}

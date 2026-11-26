@@ -44,11 +44,32 @@ from auth import (
 from config import PROJECT_DIR, Settings
 from database import Database, Item, Session, utc_now_iso
 from event_manager import EventManager
-from file_manager import FileManager, UploadError, is_valid_item_id, quota_message
+from file_manager import (
+    FileManager,
+    UploadError,
+    human_bytes,
+    is_valid_item_id,
+    quota_message,
+)
 from network import LOOPBACK_HOSTNAMES, build_urls, detect_lan_ip, print_banner
 from thumbnail_manager import ThumbnailManager, ThumbnailUnavailable
 
 logger = logging.getLogger("bifrost")
+
+
+def _configure_logging() -> None:
+    """Make the app's own lines visible next to uvicorn's output.
+
+    uvicorn only configures its own loggers, so without a root handler every
+    ``logger.info`` here (startup summary, storage usage) is silently dropped.
+    """
+    if logging.getLogger().handlers:
+        # Already configured (pytest, an embedding server, ...): leave it alone.
+        return
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+
+_configure_logging()
 
 STATIC_DIR = PROJECT_DIR / "static"
 
@@ -283,6 +304,15 @@ def create_app(
         show_banner=banner_enabled,
     )
 
+    def _storage_line() -> str:
+        """``312 MB of 5.0 GB used (4.7 GB free)`` for the terminal log."""
+        report = state.files.storage_report()
+        return (
+            f"{human_bytes(report['used_bytes'])} of"
+            f" {human_bytes(report['limit_bytes'])} used"
+            f" ({human_bytes(report['remaining_bytes'])} free)"
+        )
+
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         state.settings.ensure_directories()
@@ -351,6 +381,10 @@ def create_app(
             if not path.startswith(("/api/thumb/", "/api/files/")):
                 headers.setdefault("cache-control", "no-store")
         elif path == "/" or path.endswith(".html"):
+            headers.setdefault("cache-control", "no-cache")
+        elif path.startswith("/static/"):
+            # Without this header browsers apply heuristic freshness and can keep
+            # an old app.js/style.css running for minutes after an update.
             headers.setdefault("cache-control", "no-cache")
         return response
 
@@ -544,6 +578,9 @@ def create_app(
             raise ApiError(exc.status_code, exc.message) from exc
 
         _broadcast_added(state, item)
+        logger.info(
+            "Upload stored. Inbox storage: %s", await run_in_threadpool(_storage_line)
+        )
         return JSONResponse({"item": item.to_public()}, status_code=201)
 
     @app.post("/api/note")
@@ -577,6 +614,9 @@ def create_app(
             lambda: state.db.insert_note(text=text, name=_note_label(text), sender=sender)
         )
         _broadcast_added(state, item)
+        logger.info(
+            "Note stored. Inbox storage: %s", await run_in_threadpool(_storage_line)
+        )
         return JSONResponse({"item": item.to_public()}, status_code=201)
 
     # -------------------------------------------------------------- downloads
@@ -660,6 +700,9 @@ def create_app(
         )
         if item is None:
             raise ApiError(404, "Item not found.")
+        logger.info(
+            "Item deleted. Inbox storage: %s", await run_in_threadpool(_storage_line)
+        )
         return JSONResponse({"ok": True, "id": item.id})
 
     # ------------------------------------------------------------------- SSE
